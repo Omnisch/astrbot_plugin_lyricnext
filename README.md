@@ -70,3 +70,7 @@ python tools/search_lyrics.py
 - `preprocess_lyrics`: 是否预处理歌词以提高匹配准确率
 - `match_threshold`: 歌词匹配阈值,默认0.8（0.1-1.0，越高越精确）
 
+---
+![img.png](.github/img.png)
+---
+![img.png](.github/img_1.png)
