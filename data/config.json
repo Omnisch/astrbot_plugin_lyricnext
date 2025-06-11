@@ -1,0 +1,4 @@
+{
+    "preprocess_lyrics": true,
+    "match_threshold": 0.8
+}
