@@ -6,6 +6,7 @@ import json
 import re
 import random
 from typing import Dict, List, Tuple, Set, Optional
+from difflib import SequenceMatcher
 
 
 @register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.0.0")
@@ -138,13 +139,30 @@ class LyricNextPlugin(Star):
 
     async def _find_next_lyric(self, lyric: str) -> Optional[Tuple[str, str]]:
         """查找歌词的下一句，返回(下一句, 歌曲名)"""
-        # 直接查找
+        # 直接查找精确匹配
         processed_lyric = self._preprocess_lyric(lyric) if self.config["preprocess_lyrics"] else lyric
         if processed_lyric in self.lyrics_index:
             # 如果有多个匹配，随机选择一个
             return random.choice(self.lyrics_index[processed_lyric])
 
-        # 没有找到，返回None
+        # 如果没有精确匹配，尝试模糊匹配
+        match_threshold = self.config.get("match_threshold", 0.8)
+        best_match = None
+        best_similarity = 0.0
+        
+        for indexed_lyric in self.lyrics_index.keys():
+            # 计算相似度
+            similarity = SequenceMatcher(None, processed_lyric, indexed_lyric).ratio()
+            if similarity > best_similarity and similarity >= match_threshold:
+                best_similarity = similarity
+                best_match = indexed_lyric
+        
+        # 如果找到了足够相似的匹配
+        if best_match:
+            logger.info(f"模糊匹配: '{processed_lyric}' -> '{best_match}' (相似度: {best_similarity:.2f})")
+            return random.choice(self.lyrics_index[best_match])
+
+        # 没有找到匹配
         return None
 
     @filter.event_message_type(filter.EventMessageType.ALL)
