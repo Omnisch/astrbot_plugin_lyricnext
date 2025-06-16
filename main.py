@@ -1,18 +1,20 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
 import os
-import json
-import re
 import random
-from typing import Dict, List, Tuple, Set, Optional
+import re
 from difflib import SequenceMatcher
+from typing import Tuple, Optional
+
+from astrbot.api import logger, AstrBotConfig
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, Star, register
 
 
-@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.0.0")
+@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.1.0")
 class LyricNextPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        # 存储配置
+        self.config = config
         # 初始化歌词索引
         self.lyrics_dir = os.path.join(os.path.dirname(__file__), "data", "lyrics")
         self.lyrics_index = {}  # 歌词句子 -> [(下一句, 歌名), ...]
@@ -21,11 +23,12 @@ class LyricNextPlugin(Star):
         # 确保歌词目录存在
         os.makedirs(self.lyrics_dir, exist_ok=True)
 
-        # 配置文件路径
-        self.config_path = os.path.join(os.path.dirname(__file__), "data", "config.json")
-
-        # 初始化配置
-        self.config = self._load_config()
+    def _contains_chinese(self, text: str) -> bool:
+        """检测文本是否包含汉字"""
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                return True
+        return False
 
     async def initialize(self):
         """插件初始化，加载所有歌词文件并建立索引"""
@@ -33,38 +36,6 @@ class LyricNextPlugin(Star):
         await self._load_lyrics()
         logger.info(
             f"LyricNext插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
-
-    def _load_config(self) -> dict:
-        """加载配置文件"""
-        default_config = {
-            "preprocess_lyrics": True,  # 是否预处理歌词（去除标点等）
-            "match_threshold": 0.8,  # 模糊匹配阈值
-        }
-
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    # 合并默认配置和已有配置
-                    for key, value in default_config.items():
-                        if key not in config:
-                            config[key] = value
-                    return config
-            except Exception as e:
-                logger.error(f"加载配置文件失败: {str(e)}")
-
-        # 配置文件不存在或加载失败，使用默认配置
-        self._save_config(default_config)
-        return default_config
-
-    def _save_config(self, config: dict):
-        """保存配置文件"""
-        try:
-            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            logger.error(f"保存配置文件失败: {str(e)}")
 
     async def _load_lyrics(self):
         """加载所有歌词文件并建立索引"""
@@ -93,29 +64,33 @@ class LyricNextPlugin(Star):
                             for line in lines:
                                 # 先过滤掉明显的信息行和标题行
                                 if (':' in line or '：' in line or  # 包含冒号的信息行
-                                    ' - ' in line or  # 包含连字符的标题行（歌曲-歌手）
-                                    '(' in line and ')' in line):  # 包含括号的标题行
+                                        ' - ' in line or  # 包含连字符的标题行（歌曲-歌手）
+                                        '(' in line and ')' in line):  # 包含括号的标题行
                                     continue
-                                
                                 # 检测行内是否有空格分隔的多句歌词
                                 if ' ' in line.strip():
-                                    # 将一行拆分成多句
-                                    parts = [part.strip() for part in line.split(' ') if part.strip()]
-                                    sentences.extend(parts)
+                                    # 只有包含汉字的歌词才进行空格拆分，英文歌不拆分
+                                    if self._contains_chinese(line):
+                                        # 将一行拆分成多句
+                                        parts = [part.strip() for part in line.split(' ') if part.strip()]
+                                        sentences.extend(parts)
+                                    else:
+                                        sentences.append(line.strip())
                                 else:
                                     sentences.append(line.strip())
-                              # 过滤掉空句子和无效句子
+                            # 过滤掉空句子和无效句子
                             filtered_sentences = []
                             for sentence in sentences:
-                                if (sentence and 
-                                    len(sentence) > 1 and  # 过滤单字符
-                                    not sentence.isdigit() and  # 过滤纯数字
-                                    not all(c in '()[]{}' for c in sentence)):  # 过滤纯括号
+                                if (sentence and
+                                        len(sentence) > 1 and  # 过滤单字符
+                                        not sentence.isdigit() and  # 过滤纯数字
+                                        not all(c in '()[]{}' for c in sentence)):  # 过滤纯括号
                                     filtered_sentences.append(sentence)
-                            
+
                             # 建立句子到下一句的索引
                             for i in range(len(filtered_sentences) - 1):
-                                current_sentence = self._preprocess_lyric(filtered_sentences[i]) if self.config["preprocess_lyrics"] else filtered_sentences[i]
+                                current_sentence = self._preprocess_lyric(filtered_sentences[i]) if self.config[
+                                    "preprocess_lyrics"] else filtered_sentences[i]
                                 next_sentence = filtered_sentences[i + 1]
 
                                 if current_sentence not in self.lyrics_index:
@@ -149,14 +124,14 @@ class LyricNextPlugin(Star):
         match_threshold = self.config.get("match_threshold", 0.8)
         best_match = None
         best_similarity = 0.0
-        
+
         for indexed_lyric in self.lyrics_index.keys():
             # 计算相似度
             similarity = SequenceMatcher(None, processed_lyric, indexed_lyric).ratio()
             if similarity > best_similarity and similarity >= match_threshold:
                 best_similarity = similarity
                 best_match = indexed_lyric
-        
+
         # 如果找到了足够相似的匹配
         if best_match:
             logger.info(f"模糊匹配: '{processed_lyric}' -> '{best_match}' (相似度: {best_similarity:.2f})")
@@ -174,27 +149,27 @@ class LyricNextPlugin(Star):
         # 忽略命令前缀的消息
         if message.startswith('/'):
             return
-        
+
         # 忽略空消息
         if not message:
             return
-            
+
         # 检查消息链中是否只包含文本消息，过滤掉图片、戳一戳等非文本消息
         message_chain = event.get_messages()
         if not message_chain:
             return
-            
+
         # 检查是否包含非文本消息组件
         for component in message_chain:
             component_type = type(component).__name__.lower()
             # 如果包含图片、戳一戳、语音、视频等非文本组件，则忽略
             if component_type in ['image', 'poke', 'record', 'video', 'face', 'at', 'reply']:
                 return
-        
+
         # 过滤掉看起来像HTML/XML的内容
         if '<' in message and '>' in message:
             return
-            
+
         # 过滤掉过短或过长的消息
         if len(message) < 2 or len(message) > 50:
             return
@@ -206,6 +181,7 @@ class LyricNextPlugin(Star):
             yield event.plain_result(f"{next_lyric}")
             # 阻止事件继续传播，避免被其他插件或LLM处理
             event.stop_event()
+
     @filter.command_group("lyric")
     def lyric_commands(self):
         """歌词相关命令组"""
@@ -237,17 +213,20 @@ class LyricNextPlugin(Star):
         """重新加载所有歌词"""
         await self._load_lyrics()
         yield (((
-        (event.plain_result(f"已重新加载歌词库，共 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")))))
+            (event.plain_result(
+                f"已重新加载歌词库，共 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")))))
+
     @lyric_commands.command("search")
-    async def search_command(self, event: AstrMessageEvent, song_name: str, artist_name: str = "", music_source: str = ""):
+    async def search_command(self, event: AstrMessageEvent, song_name: str, artist_name: str = "",
+                             music_source: str = ""):
         """搜索并添加歌词"""
         # 检查是否有歌曲名
         if not song_name:
             yield event.plain_result("请提供歌曲名称，格式：/lyric search 歌名 [歌手名] [音乐源]")
-            return        # 清理参数，将空字符串转为None
+            return  # 清理参数，将空字符串转为None
         artist_name = artist_name.strip() if artist_name.strip() else None
         music_source = music_source.strip() if music_source.strip() else None
-        
+
         # 记录解析后的参数
         logger.info(f"解析后的参数: 歌名='{song_name}', 歌手='{artist_name}', 音乐源='{music_source}'")
 
@@ -318,23 +297,24 @@ class LyricNextPlugin(Star):
 
         song_list = "\n".join([f"{i + 1}. {song}" for i, song in enumerate(self.lyrics_info.keys())])
         yield (event.plain_result(f"已添加的歌曲列表（共{len(self.lyrics_info)}首）：\n{song_list}"))
+
     @lyric_commands.command("view")
     async def view_command(self, event: AstrMessageEvent, song_name: str = ""):
         """查看指定歌曲的完整歌词内容"""
         if not song_name.strip():
             yield event.plain_result("请提供歌曲名称，格式：/lyric view 歌曲名")
             return
-        
+
         # 查找匹配的歌曲
         song_name = song_name.strip()
         exact_matches = []
         fuzzy_matches = []
-        
+
         # 首先尝试精确匹配
         for existing_song in self.lyrics_info.keys():
             if song_name.lower() == existing_song.lower():
                 exact_matches.append(existing_song)
-        
+
         # 如果有精确匹配，使用精确匹配结果
         if exact_matches:
             target_song = exact_matches[0]
@@ -343,32 +323,32 @@ class LyricNextPlugin(Star):
             for existing_song in self.lyrics_info.keys():
                 if song_name.lower() in existing_song.lower():
                     fuzzy_matches.append(existing_song)
-            
+
             if not fuzzy_matches:
                 yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲\n使用 /lyric list 查看所有歌曲")
                 return
-            
+
             if len(fuzzy_matches) > 1:
                 # 多个模糊匹配结果，让用户选择
                 song_list = "\n".join([f"  {song}" for song in fuzzy_matches])
                 yield event.plain_result(f"找到多首匹配的歌曲：\n\n{song_list}\n\n请使用更精确的歌曲名")
                 return
-            
+
             # 唯一模糊匹配
             target_song = fuzzy_matches[0]
         file_path = os.path.join(self.lyrics_dir, f"{target_song}.txt")
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 lyrics_content = f.read().strip()
-            
+
             if lyrics_content:
                 # 限制显示长度，避免消息过长
                 if len(lyrics_content) > 2000:
                     lyrics_preview = lyrics_content[:2000] + "\n...\n（歌词内容过长，已截断显示）"
                 else:
                     lyrics_preview = lyrics_content
-                
+
                 yield event.plain_result(f"🎵 歌曲《{target_song}》的歌词内容：\n\n{lyrics_preview}")
             else:
                 yield event.plain_result(f"歌曲《{target_song}》的歌词文件为空")
@@ -378,6 +358,4 @@ class LyricNextPlugin(Star):
 
     async def terminate(self):
         """插件终止时的清理工作"""
-        # 保存配置
-        self._save_config(self.config)
         logger.info("LyricNext插件已终止")
