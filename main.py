@@ -235,7 +235,8 @@ class LyricNextPlugin(Star):
      * /lyrics search 晴天 周杰伦 QQ音乐
 3. /lyrics list - 列出所有已添加的歌曲
 4. /lyrics view 歌曲名 - 查看指定歌曲的完整歌词内容
-5. /lyrics reload - 重新加载所有歌词文件
+5. /lyrics delete 歌曲名 - 从歌词库中删除指定歌曲
+6. /lyrics reload - 重新加载所有歌词文件
 
 💡 提示: 
 - 如需批量下载某个歌手的所有歌曲，可运行 tools/fetch_lyrics.py
