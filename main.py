@@ -32,10 +32,44 @@ class LyricNextPlugin(Star):
 
     async def initialize(self):
         """插件初始化，加载所有歌词文件并建立索引"""
-        logger.info("正在初始化LyricNext插件...")
+        logger.info("正在初始化 LyricNext 插件...")
         await self._load_lyrics()
         logger.info(
-            f"LyricNext插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
+            f"LyricNext 插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
+
+    def _find_song_by_name(self, song_name: str) -> Tuple[int, str]:
+        """根据歌曲名查找目录中的歌曲，返回 (匹配状态, 歌曲路径)
+        匹配状态: 0 - 完全匹配, 1 - 模糊匹配, 2 - 未找到
+        """
+        # 查找匹配的歌曲
+        song_name = song_name.strip()
+        exact_matches = []
+        fuzzy_matches = []
+
+        # 首先尝试精确匹配
+        for existing_song in self.lyrics_info.keys():
+            if song_name.lower() == existing_song.lower():
+                exact_matches.append(existing_song)
+
+        # 如果有精确匹配，使用精确匹配结果
+        if exact_matches:
+            return 0, exact_matches[0]
+        # 没有精确匹配，进行模糊匹配
+        else:
+            for existing_song in self.lyrics_info.keys():
+                if song_name.lower() in existing_song.lower():
+                    fuzzy_matches.append(existing_song)
+
+            if not fuzzy_matches:
+                return 2, ""
+
+            if len(fuzzy_matches) > 1:
+                # 多个模糊匹配结果，让用户选择
+                song_list = "\n".join([f"  {song}" for song in fuzzy_matches])
+                return 1, song_list
+
+            # 唯一模糊匹配
+            return 0, fuzzy_matches[0]
 
     async def _load_lyrics(self):
         """加载所有歌词文件并建立索引"""
@@ -113,7 +147,7 @@ class LyricNextPlugin(Star):
         return processed
 
     async def _find_next_lyrics(self, lyrics: str) -> Optional[Tuple[str, str]]:
-        """查找歌词的下一句，返回(下一句, 歌曲名)"""
+        """查找歌词的下一句，返回 (下一句, 歌曲名)"""
         # 直接查找精确匹配
         processed_lyrics = self._preprocess_lyrics(lyrics) if self.config["preprocess_lyrics"] else lyrics
         if processed_lyrics in self.lyrics_index:
@@ -305,38 +339,18 @@ class LyricNextPlugin(Star):
             yield event.plain_result("请提供歌曲名称，格式：/lyrics view 歌曲名")
             return
 
-        # 查找匹配的歌曲
-        song_name = song_name.strip()
-        exact_matches = []
-        fuzzy_matches = []
-
-        # 首先尝试精确匹配
-        for existing_song in self.lyrics_info.keys():
-            if song_name.lower() == existing_song.lower():
-                exact_matches.append(existing_song)
-
-        # 如果有精确匹配，使用精确匹配结果
-        if exact_matches:
-            target_song = exact_matches[0]
+        match_status, target_song = self._find_song_by_name(song_name)
+        if match_status == 0:
+            # 完全匹配
+            file_path = os.path.join(self.lyrics_dir, f"{target_song}.txt")
+        elif match_status == 1:
+            # 模糊匹配
+            yield event.plain_result(f"找到多首匹配的歌曲：\n\n{target_song}\n\n请使用更精确的歌曲名")
+            return
         else:
-            # 没有精确匹配，进行模糊匹配
-            for existing_song in self.lyrics_info.keys():
-                if song_name.lower() in existing_song.lower():
-                    fuzzy_matches.append(existing_song)
-
-            if not fuzzy_matches:
-                yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲\n使用 /lyrics list 查看所有歌曲")
-                return
-
-            if len(fuzzy_matches) > 1:
-                # 多个模糊匹配结果，让用户选择
-                song_list = "\n".join([f"  {song}" for song in fuzzy_matches])
-                yield event.plain_result(f"找到多首匹配的歌曲：\n\n{song_list}\n\n请使用更精确的歌曲名")
-                return
-
-            # 唯一模糊匹配
-            target_song = fuzzy_matches[0]
-        file_path = os.path.join(self.lyrics_dir, f"{target_song}.txt")
+            # 未找到
+            yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲\n使用 /lyrics list 查看所有歌曲")
+            return
 
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -356,6 +370,35 @@ class LyricNextPlugin(Star):
             logger.error(f"读取歌词文件失败: {str(e)}")
             yield event.plain_result(f"读取歌曲《{target_song}》的歌词失败，请稍后再试")
 
+    @lyrics_commands.command("delete")
+    async def delete_command(self, event: AstrMessageEvent, song_name: str = ""):
+        """删除指定歌曲的歌词文件"""
+        if not song_name.strip():
+            yield event.plain_result("请提供歌曲名称，格式：/lyrics delete 歌曲名")
+            return
+
+        match_status, target_song = self._find_song_by_name(song_name)
+        if match_status == 0:
+            # 完全匹配
+            file_path = os.path.join(self.lyrics_dir, f"{target_song}.txt")
+        elif match_status == 1:
+            # 模糊匹配
+            yield event.plain_result(f"找到多首匹配的歌曲：\n\n{target_song}\n\n请使用更精确的歌曲名")
+            return
+        else:
+            # 未找到
+            yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲")
+            return
+
+        try:
+            os.remove(file_path)
+            # 重新加载歌词库以更新索引
+            await self._load_lyrics()
+            yield event.plain_result(f"已删除歌曲《{song_name}》的歌词")
+        except Exception as e:
+            logger.error(f"删除歌词文件失败: {str(e)}")
+            yield event.plain_result(f"删除歌曲《{song_name}》的歌词失败")
+
     async def terminate(self):
         """插件终止时的清理工作"""
-        logger.info("LyricNext插件已终止")
+        logger.info("LyricNext 插件已终止")
