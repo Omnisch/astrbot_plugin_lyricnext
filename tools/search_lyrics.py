@@ -387,7 +387,7 @@ def search_qq(song_name, artist_name=None, headers=None):
         return None
 
 
-def search_and_save_lyrics(song_name, artist_name=None, music_source=None):
+def search_and_save_lyrics(song_name, artist_name=None, music_source=None, custom_lyrics_dir=None):
     """搜索歌词并保存到歌词库，返回 (是否成功, 文件路径, 预览内容)"""
     print(f"search_and_save_lyrics: 歌名='{song_name}', 歌手='{artist_name}', 音乐源='{music_source}'")
     lyrics = search_song_lyrics(song_name, music_source, artist_name)
@@ -406,8 +406,11 @@ def search_and_save_lyrics(song_name, artist_name=None, music_source=None):
     # 处理文件名中的非法字符
     file_name = re.sub(r'[\\/:*?"<>|]', '_', file_name)
 
+    # 确定保存目录 - 如果传入了自定义目录则使用，否则使用默认目录
+    lyrics_dir = custom_lyrics_dir if custom_lyrics_dir else LYRICS_DIR
+    
     # 保存到歌词库
-    file_path = os.path.join(LYRICS_DIR, f"{file_name}.txt")
+    file_path = os.path.join(lyrics_dir, f"{file_name}.txt")
 
     try:
         with open(file_path, 'w', encoding='utf-8') as f:

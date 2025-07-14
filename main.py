@@ -1,27 +1,87 @@
 import os
 import random
 import re
+import shutil
 from difflib import SequenceMatcher
 from typing import Tuple, Optional
+from pathlib import Path
 
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 
 
-@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.1.0")
+@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.3.0")
 class LyricNextPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         # 存储配置
         self.config = config
         # 初始化歌词索引
-        self.lyrics_dir = os.path.join(os.path.dirname(__file__), "data", "lyrics")
+        self.default_lyrics_dir = os.path.join(os.path.dirname(__file__), "data", "lyrics")  # 插件内默认歌词目录
+        
+        astrbot_root = Path(__file__).resolve().parent.parent.parent
+        self.lyrics_dir = os.path.join(astrbot_root, "lyrics_data")  # 用户持久化歌词目录
+        
         self.lyrics_index = {}  # 歌词句子 -> [(下一句, 歌名), ...]
         self.lyrics_info = {}  # 歌名 -> 歌曲信息(作者等)
 
-        # 确保歌词目录存在
+        # 确保用户歌词目录存在 - 这是主要的歌词加载目录
         os.makedirs(self.lyrics_dir, exist_ok=True)
+        logger.info(f"用户歌词目录: {self.lyrics_dir}")
+        
+        # 确保默认歌词目录存在（仅用于转移）
+        if not os.path.exists(self.default_lyrics_dir):
+            os.makedirs(self.default_lyrics_dir, exist_ok=True)
+            logger.info(f"创建默认歌词目录: {self.default_lyrics_dir}")
+
+    async def _migrate_default_lyrics(self):
+        """将插件内默认歌词文件夹的内容增量迁移到用户的持久化数据目录"""
+        try:
+            # 检查插件内默认歌词目录是否存在且有文件
+            if not os.path.exists(self.default_lyrics_dir):
+                logger.info("插件内默认歌词目录不存在，跳过迁移")
+                return
+                
+            default_files = [f for f in os.listdir(self.default_lyrics_dir) if f.endswith('.txt')]
+            if not default_files:
+                logger.info("插件内默认歌词目录为空，跳过迁移")
+                return
+            
+            # 获取用户目录中已有的文件
+            existing_files = set()
+            if os.path.exists(self.lyrics_dir):
+                existing_files = set(f for f in os.listdir(self.lyrics_dir) if f.endswith('.txt'))
+            
+            # 计算需要迁移的文件（增量迁移，不覆盖已有文件）
+            files_to_migrate = []
+            for filename in default_files:
+                if filename not in existing_files:
+                    files_to_migrate.append(filename)
+            
+            if not files_to_migrate:
+                logger.info("所有插件内默认歌词文件已存在于用户目录，无需迁移")
+                return
+            
+            # 执行迁移
+            migrated_count = 0
+            for filename in files_to_migrate:
+                try:
+                    src_path = os.path.join(self.default_lyrics_dir, filename)
+                    dst_path = os.path.join(self.lyrics_dir, filename)
+                    
+                    # 复制文件而不是移动，保留原始文件
+                    shutil.copy2(src_path, dst_path)
+                    migrated_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"迁移歌词文件 {filename} 失败: {str(e)}")
+            
+            if migrated_count > 0:
+                logger.info(f"成功从插件内目录迁移 {migrated_count} 个默认歌词文件到用户持久化目录")
+            
+        except Exception as e:
+            logger.error(f"迁移插件内默认歌词文件时发生错误: {str(e)}")
 
     def _contains_chinese(self, text: str) -> bool:
         """检测文本是否包含汉字"""
@@ -33,6 +93,11 @@ class LyricNextPlugin(Star):
     async def initialize(self):
         """插件初始化，加载所有歌词文件并建立索引"""
         logger.info("正在初始化 LyricNext 插件...")
+        
+        # 首先检查并迁移默认歌词到用户目录
+        await self._migrate_default_lyrics()
+        
+        # 然后加载歌词
         await self._load_lyrics()
         logger.info(
             f"LyricNext 插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
@@ -137,9 +202,31 @@ class LyricNextPlugin(Star):
             logger.error(f"遍历歌词目录失败: {str(e)}")
 
     def _preprocess_lyrics(self, lyrics: str) -> str:
-        """预处理歌词，去除标点符号，统一大小写等"""
-        # 去除标点符号
-        processed = re.sub(r'[^\w\s]', '', lyrics)
+        """预处理歌词，去除标点符号、emoji、QQ表情等，统一大小写等"""
+        # 去除QQ表情格式 [表情:数字] 或类似格式
+        processed = re.sub(r'\[表情:\d+\]', '', lyrics)
+        processed = re.sub(r'\[[^\]]*\]', '', processed)  # 去除其他方括号格式
+          # 去除emoji表情（更精确的Unicode范围）
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002700-\U000027BF"  # dingbats
+            "\U0001F900-\U0001F9FF"  # supplemental symbols
+            "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-a
+            "\U00002600-\U000026FF"  # miscellaneous symbols
+            "\U0001F780-\U0001F7FF"  # geometric shapes extended
+            "]+", flags=re.UNICODE)
+        processed = emoji_pattern.sub('', processed)
+
+        # 去除标点符号，保留字母、数字、中文字符和空格
+        # a-zA-Z0-9: 英文字母和数字
+        # \u4e00-\u9fff: 中文字符
+        # \s: 空格字符
+        processed = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fff\s]', '', processed)
+
         # 去除多余空格
         processed = re.sub(r'\s+', ' ', processed).strip()
         # 转为小写
@@ -197,7 +284,7 @@ class LyricNextPlugin(Star):
         for component in message_chain:
             component_type = type(component).__name__.lower()
             # 如果包含图片、戳一戳、语音、视频等非文本组件，则忽略
-            if component_type in ['image', 'poke', 'record', 'video', 'face', 'at', 'reply']:
+            if component_type in ['image', 'poke', 'record', 'video',  'at', 'reply']:
                 return
 
         # 过滤掉看起来像HTML/XML的内容
@@ -297,9 +384,9 @@ class LyricNextPlugin(Star):
 
             from search_lyrics import search_and_save_lyrics
 
-            # 执行搜索
+            # 执行搜索，传入用户歌词目录
             logger.info(f"开始搜索歌词, 歌名:{song_name}, 歌手:{artist_name}, 音乐源:{music_source}")
-            success, file_path, preview = search_and_save_lyrics(song_name, artist_name, music_source)
+            success, file_path, preview = search_and_save_lyrics(song_name, artist_name, music_source, self.lyrics_dir)
             logger.info(f"搜索结果: 成功={success}, 文件路径={file_path}")
             if success:
                 # 重新加载歌词库以包含新添加的歌词
