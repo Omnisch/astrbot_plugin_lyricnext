@@ -58,10 +58,10 @@ def search_song_lyrics(song_name, music_source=None, artist_name=None):
                     print("网易云音乐: 成功获取歌词")
                     return lyrics
             elif platform == 'qq':
-                print("尝试从QQ音乐搜索...")
+                print("尝试从 QQ 音乐搜索...")
                 lyrics = search_qq(song_name, artist_name, headers)
                 if lyrics:
-                    print("QQ音乐: 成功获取歌词")
+                    print("QQ 音乐: 成功获取歌词")
                     return lyrics
             elif platform == 'kugou':
                 print("尝试从酷狗音乐搜索...")
@@ -101,7 +101,6 @@ def search_netease(song_name, artist_name=None, headers=None):
 
         if 'result' in data and 'songs' in data['result'] and len(data['result']['songs']) > 0:
             # 找到匹配的歌曲
-            found = False
             for song in data['result']['songs']:
                 song_id = song['id']
                 found_song_name = song['name']
@@ -114,16 +113,16 @@ def search_netease(song_name, artist_name=None, headers=None):
                 print(f"找到歌曲: {found_song_name} - {found_artist_name}")
 
                 # 获取歌词
-                lyric_url = f"https://music.163.com/api/song/lyric?id={song_id}&lv=1&kv=1&tv=-1"
-                response = requests.get(lyric_url, headers=headers)
-                lyric_data = response.json()
+                lyrics_url = f"https://music.163.com/api/song/lyric?id={song_id}&lv=1&kv=1&tv=-1"
+                response = requests.get(lyrics_url, headers=headers)
+                lyrics_data = response.json()
 
-                if 'lrc' in lyric_data and 'lyric' in lyric_data['lrc']:
-                    raw_lyric = lyric_data['lrc']['lyric']
+                if 'lrc' in lyrics_data and 'lyric' in lyrics_data['lrc']:
+                    raw_lyrics = lyrics_data['lrc']['lyric']
 
                     # 处理歌词格式，去除时间标签
                     processed_lyrics = []
-                    for line in raw_lyric.split('\n'):
+                    for line in raw_lyrics.split('\n'):
                         line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                         if line and not line.startswith('['):
                             processed_lyrics.append(line)
@@ -191,8 +190,8 @@ def search_kugou(song_name, artist_name=None, headers=None):
                         print(f"找到歌曲: {found_song_name} - {found_artist_name}")
 
                         # 获取歌词
-                        lyric_url = "http://krcs.kugou.com/search"
-                        lyric_params = {
+                        lyrics_url = "http://krcs.kugou.com/search"
+                        lyrics_params = {
                             'ver': 1,
                             'man': 'yes',
                             'client': 'mobi',
@@ -201,25 +200,25 @@ def search_kugou(song_name, artist_name=None, headers=None):
                             'hash': hash_value
                         }
 
-                        lyric_response = requests.get(lyric_url, headers=headers, params=lyric_params)
+                        lyrics_response = requests.get(lyrics_url, headers=headers, params=lyrics_params)
 
-                        if lyric_response.text:
+                        if lyrics_response.text:
                             try:
-                                lyric_data = lyric_response.json()
+                                lyrics_data = lyrics_response.json()
 
-                                if 'candidates' in lyric_data and len(lyric_data['candidates']) > 0:
+                                if 'candidates' in lyrics_data and len(lyrics_data['candidates']) > 0:
                                     # 获取第一个候选歌词
-                                    candidate = lyric_data['candidates'][0]
-                                    lyric_id = candidate.get('id')
+                                    candidate = lyrics_data['candidates'][0]
+                                    lyrics_id = candidate.get('id')
                                     access_key = candidate.get('accesskey')
 
-                                    if lyric_id and access_key:
+                                    if lyrics_id and access_key:
                                         # 获取具体歌词内容
                                         download_url = "http://lyrics.kugou.com/download"
                                         download_params = {
                                             'ver': 1,
                                             'client': 'pc',
-                                            'id': lyric_id,
+                                            'id': lyrics_id,
                                             'accesskey': access_key,
                                             'fmt': 'lrc',
                                             'charset': 'utf8'
@@ -236,11 +235,11 @@ def search_kugou(song_name, artist_name=None, headers=None):
                                                     import base64
                                                     # 解码Base64编码的歌词
                                                     encoded_lyrics = download_data['content']
-                                                    raw_lyric = base64.b64decode(encoded_lyrics).decode('utf-8')
+                                                    raw_lyrics = base64.b64decode(encoded_lyrics).decode('utf-8')
 
                                                     # 处理歌词格式，去除时间标签
                                                     processed_lyrics = []
-                                                    for line in raw_lyric.split('\n'):
+                                                    for line in raw_lyrics.split('\n'):
                                                         line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                                                         if line and not line.startswith('['):
                                                             processed_lyrics.append(line)
@@ -256,7 +255,7 @@ def search_kugou(song_name, artist_name=None, headers=None):
                                 print(f"酷狗音乐: 解析歌词搜索结果失败: {str(e)}")
                                 continue
             except Exception as e:
-                print(f"酷狗音乐: 解析搜索结果JSON失败: {str(e)}")
+                print(f"酷狗音乐: 解析搜索结果 JSON 失败: {str(e)}")
 
         print("酷狗音乐: 未找到歌词")
         return None
@@ -268,7 +267,7 @@ def search_kugou(song_name, artist_name=None, headers=None):
 
 
 def search_qq(song_name, artist_name=None, headers=None):
-    """从QQ音乐搜索歌词"""
+    """从 QQ 音乐搜索歌词"""
     if headers is None:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -339,7 +338,7 @@ def search_qq(song_name, artist_name=None, headers=None):
                 print(f"找到歌曲: {found_song_name} - {' '.join([s.get('name', '') for s in song.get('singer', [])])}")
 
                 # 获取歌词
-                lyric_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
+                lyrics_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
                 params = {
                     'songmid': song_mid,
                     'g_tk': '5381',
@@ -355,18 +354,18 @@ def search_qq(song_name, artist_name=None, headers=None):
 
                 qq_headers['Referer'] = 'https://y.qq.com/'
 
-                response = requests.get(lyric_url, headers=qq_headers, params=params)
+                response = requests.get(lyrics_url, headers=qq_headers, params=params)
 
                 try:
-                    lyric_data = response.json()
-                    if 'lyric' in lyric_data and lyric_data.get('retcode', -1) == 0:
-                        # QQ音乐返回的歌词是base64编码的
+                    lyrics_data = response.json()
+                    if 'lyric' in lyrics_data and lyrics_data.get('retcode', -1) == 0:
+                        # QQ 音乐返回的歌词是 Base64 编码的
                         import base64
-                        raw_lyric = base64.b64decode(lyric_data['lyric']).decode('utf-8')
+                        raw_lyrics = base64.b64decode(lyrics_data['lyric']).decode('utf-8')
 
                         # 处理歌词格式，去除时间标签
                         processed_lyrics = []
-                        for line in raw_lyric.split('\n'):
+                        for line in raw_lyrics.split('\n'):
                             line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                             if line and not line.startswith('['):
                                 processed_lyrics.append(line)
@@ -376,20 +375,20 @@ def search_qq(song_name, artist_name=None, headers=None):
                         if lyrics.strip():
                             return lyrics
                 except Exception as e:
-                    print(f"QQ音乐: 解析歌词失败: {str(e)}")
+                    print(f"QQ 音乐: 解析歌词失败: {str(e)}")
                     continue
 
-        print("QQ音乐: 未找到歌词")
+        print("QQ 音乐: 未找到歌词")
         return None
     except Exception as e:
-        print(f"QQ音乐搜索出错: {str(e)}")
+        print(f"QQ 音乐搜索出错: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
 
 
 def search_and_save_lyrics(song_name, artist_name=None, music_source=None):
-    """搜索歌词并保存到歌词库，返回(是否成功, 文件路径, 预览内容)"""
+    """搜索歌词并保存到歌词库，返回 (是否成功, 文件路径, 预览内容)"""
     print(f"search_and_save_lyrics: 歌名='{song_name}', 歌手='{artist_name}', 音乐源='{music_source}'")
     lyrics = search_song_lyrics(song_name, music_source, artist_name)
 
@@ -499,7 +498,7 @@ def main():
             print("\n歌词预览:")
             print(preview)
         else:
-            if preview:  # preview包含了歌词内容但保存失败
+            if preview:  # preview 包含了歌词内容但保存失败
                 print("\n保存歌词失败，但获取到了歌词内容:")
                 print(preview)
             else:
