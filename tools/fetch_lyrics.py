@@ -24,7 +24,7 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Referer': 'https://www.google.com/',  # 默认Referer
+    'Referer': 'https://www.google.com/',  # 默认 Referer
 }
 
 
@@ -33,18 +33,18 @@ def get_artist_songs(artist_name="周杰伦"):
     print(f"正在从网易云音乐获取{artist_name}的歌曲列表...")
 
     try:
-        # 使用网易云音乐的搜索API
+        # 使用网易云音乐的搜索 API
         search_url = f"https://music.163.com/api/search/get"
         params = {
             's': artist_name,
-            'type': 100,  # 100表示歌手
+            'type': 100,  # 100 表示歌手
             'limit': 1
         }
 
         response = requests.get(search_url, headers=HEADERS, params=params)
         data = response.json()
 
-        # 获取歌手ID
+        # 获取歌手 ID
         if 'result' in data and 'artists' in data['result'] and len(data['result']['artists']) > 0:
             artist_id = data['result']['artists'][0]['id']
 
@@ -74,9 +74,9 @@ def get_artist_songs(artist_name="周杰伦"):
         return []
 
 
-def get_song_lyric(song_id):
+def get_song_lyrics(song_id):
     """从网易云音乐获取歌曲歌词"""
-    lyric_url = f"https://music.163.com/api/song/lyric"
+    lyrics_url = f"https://music.163.com/api/song/lyric"
     params = {
         'id': song_id,
         'lv': 1,
@@ -85,15 +85,15 @@ def get_song_lyric(song_id):
     }
 
     try:
-        response = requests.get(lyric_url, headers=HEADERS, params=params)
+        response = requests.get(lyrics_url, headers=HEADERS, params=params)
         data = response.json()
 
         if 'lrc' in data and 'lyric' in data['lrc']:
-            raw_lyric = data['lrc']['lyric']
+            raw_lyrics = data['lrc']['lyric']
 
             # 处理歌词格式，去除时间标签
             processed_lyrics = []
-            for line in raw_lyric.split('\n'):
+            for line in raw_lyrics.split('\n'):
                 # 去除时间标签 [00:00.000]
                 line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                 if line and not line.startswith('['):
@@ -108,8 +108,8 @@ def get_song_lyric(song_id):
 
 
 def get_qq_music_songs(artist_name="周杰伦"):
-    """从QQ音乐获取歌手的所有歌曲列表"""
-    print(f"正在从QQ音乐获取{artist_name}的歌曲列表...")
+    """从 QQ 音乐获取歌手的所有歌曲列表"""
+    print(f"正在从 QQ 音乐获取{artist_name}的歌曲列表...")
 
     # 首先搜索歌手
     search_url = "https://u.y.qq.com/cgi-bin/musicu.fcg"
@@ -121,7 +121,7 @@ def get_qq_music_songs(artist_name="周杰伦"):
                 "query": artist_name,
                 "page_num": 1,
                 "num_per_page": 20,
-                "search_type": 9  # 9表示歌手
+                "search_type": 9  # 9 表示歌手
             }
         }
     }
@@ -198,19 +198,19 @@ def get_qq_music_songs(artist_name="周杰伦"):
                                 'name': song_name
                             })
 
-                print(f"QQ音乐: 共找到 {len(songs)} 首歌曲")
+                print(f"QQ 音乐: 共找到 {len(songs)} 首歌曲")
                 return songs
 
-        print(f"QQ音乐: 未找到歌手: {artist_name}")
+        print(f"QQ 音乐: 未找到歌手: {artist_name}")
         return []
     except Exception as e:
-        print(f"QQ音乐: 获取歌曲列表出错: {str(e)}")
+        print(f"QQ 音乐: 获取歌曲列表出错: {str(e)}")
         return []
 
 
-def get_qq_music_lyric(song_mid):
-    """从QQ音乐获取歌曲歌词"""
-    lyric_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
+def get_qq_music_lyrics(song_mid):
+    """从 QQ 音乐获取歌曲歌词"""
+    lyrics_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
     params = {
         'songmid': song_mid,
         'g_tk': '5381',
@@ -228,17 +228,17 @@ def get_qq_music_lyric(song_mid):
     qq_headers['Referer'] = 'https://y.qq.com/'
 
     try:
-        response = requests.get(lyric_url, headers=qq_headers, params=params)
+        response = requests.get(lyrics_url, headers=qq_headers, params=params)
         data = response.json()
 
         if 'lyric' in data and data.get('retcode', -1) == 0:
-            # QQ音乐返回的歌词是base64编码的
+            # QQ 音乐返回的歌词是 Base64 编码的
             import base64
-            raw_lyric = base64.b64decode(data['lyric']).decode('utf-8')
+            raw_lyrics = base64.b64decode(data['lyric']).decode('utf-8')
 
             # 处理歌词格式，去除时间标签
             processed_lyrics = []
-            for line in raw_lyric.split('\n'):
+            for line in raw_lyrics.split('\n'):
                 line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                 if line and not line.startswith('['):
                     processed_lyrics.append(line)
@@ -247,7 +247,7 @@ def get_qq_music_lyric(song_mid):
         else:
             return None
     except Exception as e:
-        print(f"QQ音乐: 获取歌词出错: {str(e)}")
+        print(f"QQ 音乐: 获取歌词出错: {str(e)}")
         return None
 
 
@@ -255,7 +255,7 @@ def get_kugou_songs(artist_name="周杰伦"):
     """从酷狗音乐获取歌手的所有歌曲列表"""
     print(f"正在从酷狗音乐获取{artist_name}的歌曲列表...")
 
-    # 使用酷狗音乐搜索API
+    # 使用酷狗音乐搜索 API
     search_url = "http://mobilecdn.kugou.com/api/v3/search/song"
     params = {
         'format': 'json',
@@ -326,37 +326,37 @@ def get_kugou_songs(artist_name="周杰伦"):
         return []
 
 
-def get_kugou_lyric(song_hash):
+def get_kugou_lyrics(song_hash):
     """从酷狗音乐获取歌曲歌词"""
     headers = HEADERS.copy()
     headers['Referer'] = 'https://www.kugou.com/'
 
     try:
         # 获取歌词
-        lyric_url = "http://krcs.kugou.com/search"
-        lyric_params = {
+        lyrics_url = "http://krcs.kugou.com/search"
+        lyrics_params = {
             'ver': 1,
             'man': 'yes',
             'client': 'mobi',
             'hash': song_hash
         }
 
-        response = requests.get(lyric_url, headers=headers, params=lyric_params)
+        response = requests.get(lyrics_url, headers=headers, params=lyrics_params)
         data = response.json()
 
         if 'candidates' in data and len(data['candidates']) > 0:
             # 获取第一个候选歌词
             candidate = data['candidates'][0]
-            lyric_id = candidate.get('id')
+            lyrics_id = candidate.get('id')
             access_key = candidate.get('accesskey')
 
-            if lyric_id and access_key:
+            if lyrics_id and access_key:
                 # 获取具体歌词内容
                 download_url = "http://lyrics.kugou.com/download"
                 download_params = {
                     'ver': 1,
                     'client': 'pc',
-                    'id': lyric_id,
+                    'id': lyrics_id,
                     'accesskey': access_key,
                     'fmt': 'lrc',
                     'charset': 'utf8'
@@ -367,13 +367,13 @@ def get_kugou_lyric(song_hash):
 
                 if download_data.get('status') == 200 and 'content' in download_data:
                     import base64
-                    # 解码Base64编码的歌词
+                    # 解码 Base64 编码的歌词
                     encoded_lyrics = download_data['content']
-                    raw_lyric = base64.b64decode(encoded_lyrics).decode('utf-8')
+                    raw_lyrics = base64.b64decode(encoded_lyrics).decode('utf-8')
 
                     # 处理歌词格式，去除时间标签
                     processed_lyrics = []
-                    for line in raw_lyric.split('\n'):
+                    for line in raw_lyrics.split('\n'):
                         line = re.sub(r'\[\d+:\d+\.\d+\]', '', line).strip()
                         if line and not line.startswith('['):
                             processed_lyrics.append(line)
@@ -437,13 +437,13 @@ def main():
     artist_name = input("请输入要爬取歌词的歌手名称 (默认：周杰伦): ").strip() or "周杰伦"
 
     # 选择歌词源
-    source = input("请选择歌词数据来源 (1: 网易云音乐, 2: QQ音乐, 3: 酷狗音乐): ").strip()
+    source = input("请选择歌词数据来源 (1: 网易云音乐, 2: QQ 音乐, 3: 酷狗音乐): ").strip()
 
     if source == "1":
         print(f"使用网易云音乐爬取{artist_name}的歌词...")
         songs = get_artist_songs(artist_name)
     elif source == "2":
-        print(f"使用QQ音乐爬取{artist_name}的歌词...")
+        print(f"使用 QQ 音乐爬取{artist_name}的歌词...")
         songs = get_qq_music_songs(artist_name)
     elif source == "3":
         print(f"使用酷狗音乐爬取{artist_name}的歌词...")
@@ -465,7 +465,7 @@ def main():
             songs = songs[:limit]
             print(f"将爬取前 {limit} 首歌曲")
 
-    # 添加随机延时，防止被封IP
+    # 添加随机延时，防止被封 IP
     delay_min = 1
     delay_max = 3
     delay_str = input(f"请输入请求间隔时间范围（秒），格式为'最小值-最大值'(默认: {delay_min}-{delay_max}): ").strip()
@@ -487,27 +487,27 @@ def main():
         # 处理歌名中的非法字符，防止保存文件出错
         safe_song_name = re.sub(r'[\\/:*?"<>|]', '_', song_name)
 
-        # 避免频繁请求被封IP
+        # 避免频繁请求被封 IP
         time.sleep(random.uniform(delay_min, delay_max))
 
         # 根据不同来源获取歌词
-        lyric = None
+        lyrics = None
         if source == "1":
-            lyric = get_song_lyric(song_id)
+            lyrics = get_song_lyrics(song_id)
         elif source == "2":
-            lyric = get_qq_music_lyric(song.get('mid', ''))
+            lyrics = get_qq_music_lyrics(song.get('mid', ''))
         elif source == "3":
-            lyric = get_kugou_lyric(song_id)
+            lyrics = get_kugou_lyrics(song_id)
 
-        if lyric:
+        if lyrics:
             # 过滤歌词，去除作词作曲等信息
-            filtered_lyric = _filter_lyrics_for_storage(lyric)
+            filtered_lyrics = _filter_lyrics_for_storage(lyrics)
 
             # 保存歌词到文件
             file_path = os.path.join(LYRICS_DIR, f"{safe_song_name}.txt")
             try:
                 with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(filtered_lyric)
+                    f.write(filtered_lyrics)
                 print(f"✓ 歌词已保存到: {file_path}")
                 success_count += 1
             except Exception as e:

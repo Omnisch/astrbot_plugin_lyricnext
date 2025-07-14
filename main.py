@@ -89,7 +89,7 @@ class LyricNextPlugin(Star):
 
                             # 建立句子到下一句的索引
                             for i in range(len(filtered_sentences) - 1):
-                                current_sentence = self._preprocess_lyric(filtered_sentences[i]) if self.config[
+                                current_sentence = self._preprocess_lyrics(filtered_sentences[i]) if self.config[
                                     "preprocess_lyrics"] else filtered_sentences[i]
                                 next_sentence = filtered_sentences[i + 1]
 
@@ -102,39 +102,39 @@ class LyricNextPlugin(Star):
         except Exception as e:
             logger.error(f"遍历歌词目录失败: {str(e)}")
 
-    def _preprocess_lyric(self, lyric: str) -> str:
+    def _preprocess_lyrics(self, lyrics: str) -> str:
         """预处理歌词，去除标点符号，统一大小写等"""
         # 去除标点符号
-        processed = re.sub(r'[^\w\s]', '', lyric)
+        processed = re.sub(r'[^\w\s]', '', lyrics)
         # 去除多余空格
         processed = re.sub(r'\s+', ' ', processed).strip()
         # 转为小写
         processed = processed.lower()
         return processed
 
-    async def _find_next_lyric(self, lyric: str) -> Optional[Tuple[str, str]]:
+    async def _find_next_lyrics(self, lyrics: str) -> Optional[Tuple[str, str]]:
         """查找歌词的下一句，返回(下一句, 歌曲名)"""
         # 直接查找精确匹配
-        processed_lyric = self._preprocess_lyric(lyric) if self.config["preprocess_lyrics"] else lyric
-        if processed_lyric in self.lyrics_index:
+        processed_lyrics = self._preprocess_lyrics(lyrics) if self.config["preprocess_lyrics"] else lyrics
+        if processed_lyrics in self.lyrics_index:
             # 如果有多个匹配，随机选择一个
-            return random.choice(self.lyrics_index[processed_lyric])
+            return random.choice(self.lyrics_index[processed_lyrics])
 
         # 如果没有精确匹配，尝试模糊匹配
         match_threshold = self.config.get("match_threshold", 0.8)
         best_match = None
         best_similarity = 0.0
 
-        for indexed_lyric in self.lyrics_index.keys():
+        for indexed_lyrics in self.lyrics_index.keys():
             # 计算相似度
-            similarity = SequenceMatcher(None, processed_lyric, indexed_lyric).ratio()
+            similarity = SequenceMatcher(None, processed_lyrics, indexed_lyrics).ratio()
             if similarity > best_similarity and similarity >= match_threshold:
                 best_similarity = similarity
-                best_match = indexed_lyric
+                best_match = indexed_lyrics
 
         # 如果找到了足够相似的匹配
         if best_match:
-            logger.info(f"模糊匹配: '{processed_lyric}' -> '{best_match}' (相似度: {best_similarity:.2f})")
+            logger.info(f"模糊匹配: '{processed_lyrics}' -> '{best_match}' (相似度: {best_similarity:.2f})")
             return random.choice(self.lyrics_index[best_match])
 
         # 没有找到匹配
@@ -175,40 +175,40 @@ class LyricNextPlugin(Star):
             return
 
         # 查找下一句歌词
-        result = await self._find_next_lyric(message)
+        result = await self._find_next_lyrics(message)
         if result:
-            next_lyric, song_name = result
-            yield event.plain_result(f"{next_lyric}")
+            next_lyrics, song_name = result
+            yield event.plain_result(f"{next_lyrics}")
             # 阻止事件继续传播，避免被其他插件或LLM处理
             event.stop_event()
 
-    @filter.command_group("lyric")
-    def lyric_commands(self):
+    @filter.command_group("lyrics")
+    def lyrics_commands(self):
         """歌词相关命令组"""
         pass
 
-    @lyric_commands.command("help")
+    @lyrics_commands.command("help")
     async def help_command(self, event: AstrMessageEvent):
         """显示帮助信息"""
         help_text = """歌词接龙插件使用帮助：
 1. 直接发送歌词，机器人会回复下一句
-2. /lyric search 歌名 [歌手名] [音乐源] - 搜索并添加歌词到歌词库
+2. /lyrics search 歌名 [歌手名] [音乐源] - 搜索并添加歌词到歌词库
    - 支持的音乐源: 网易云, QQ音乐, 酷狗
    - 歌手名和音乐源为可选参数
    - 示例: 
-     * /lyric search 晴天
-     * /lyric search 晴天 周杰伦
-     * /lyric search 晴天 周杰伦 QQ音乐
-3. /lyric list - 列出所有已添加的歌曲
-4. /lyric view 歌曲名 - 查看指定歌曲的完整歌词内容
-5. /lyric reload - 重新加载所有歌词文件
+     * /lyrics search 晴天
+     * /lyrics search 晴天 周杰伦
+     * /lyrics search 晴天 周杰伦 QQ音乐
+3. /lyrics list - 列出所有已添加的歌曲
+4. /lyrics view 歌曲名 - 查看指定歌曲的完整歌词内容
+5. /lyrics reload - 重新加载所有歌词文件
 
 💡 提示: 
 - 如需批量下载某个歌手的所有歌曲，可运行 tools/fetch_lyrics.py
 - 可单独运行 tools/search_lyrics.py 搜索单首歌曲"""
         yield event.plain_result(help_text)
 
-    @lyric_commands.command("reload")
+    @lyrics_commands.command("reload")
     async def reload_command(self, event: AstrMessageEvent):
         """重新加载所有歌词"""
         await self._load_lyrics()
@@ -216,13 +216,13 @@ class LyricNextPlugin(Star):
             (event.plain_result(
                 f"已重新加载歌词库，共 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")))))
 
-    @lyric_commands.command("search")
+    @lyrics_commands.command("search")
     async def search_command(self, event: AstrMessageEvent, song_name: str, artist_name: str = "",
                              music_source: str = ""):
         """搜索并添加歌词"""
         # 检查是否有歌曲名
         if not song_name:
-            yield event.plain_result("请提供歌曲名称，格式：/lyric search 歌名 [歌手名] [音乐源]")
+            yield event.plain_result("请提供歌曲名称，格式：/lyrics search 歌名 [歌手名] [音乐源]")
             return  # 清理参数，将空字符串转为None
         artist_name = artist_name.strip() if artist_name.strip() else None
         music_source = music_source.strip() if music_source.strip() else None
@@ -288,7 +288,7 @@ class LyricNextPlugin(Star):
             logger.error(f"错误详情: {error_trace}")
             yield event.plain_result(f"搜索歌词失败: {str(e)}\n请检查日志获取详细信息。")
 
-    @lyric_commands.command("list")
+    @lyrics_commands.command("list")
     async def list_command(self, event: AstrMessageEvent):
         """列出所有已添加的歌曲"""
         if not self.lyrics_info:
@@ -298,11 +298,11 @@ class LyricNextPlugin(Star):
         song_list = "\n".join([f"{i + 1}. {song}" for i, song in enumerate(self.lyrics_info.keys())])
         yield (event.plain_result(f"已添加的歌曲列表（共{len(self.lyrics_info)}首）：\n{song_list}"))
 
-    @lyric_commands.command("view")
+    @lyrics_commands.command("view")
     async def view_command(self, event: AstrMessageEvent, song_name: str = ""):
         """查看指定歌曲的完整歌词内容"""
         if not song_name.strip():
-            yield event.plain_result("请提供歌曲名称，格式：/lyric view 歌曲名")
+            yield event.plain_result("请提供歌曲名称，格式：/lyrics view 歌曲名")
             return
 
         # 查找匹配的歌曲
@@ -325,7 +325,7 @@ class LyricNextPlugin(Star):
                     fuzzy_matches.append(existing_song)
 
             if not fuzzy_matches:
-                yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲\n使用 /lyric list 查看所有歌曲")
+                yield event.plain_result(f"未找到包含 '{song_name}' 的歌曲\n使用 /lyrics list 查看所有歌曲")
                 return
 
             if len(fuzzy_matches) > 1:
