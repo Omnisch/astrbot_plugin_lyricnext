@@ -11,7 +11,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 
 
-@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.3.0")
+@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.2.1")
 class LyricNextPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
