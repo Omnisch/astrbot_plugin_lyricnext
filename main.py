@@ -90,16 +90,20 @@ class LyricNextPlugin(Star):
                 return True
         return False
 
-    async def initialize(self):
-        """插件初始化，加载所有歌词文件并建立索引"""
-        logger.info("正在初始化 LyricNext 插件...")
-        
-        # 根据配置决定是否迁移默认歌词到用户目录
+    async def _migrate_lyrics_if_enabled(self):
+        """根据配置决定是否迁移默认歌词到用户目录"""
         if self.config.get("auto_import_default_lyrics", True):
             logger.info("自动导入默认歌词库已启用，开始迁移歌词...")
             await self._migrate_default_lyrics()
         else:
             logger.info("自动导入默认歌词库已禁用，跳过迁移歌词")
+
+    async def initialize(self):
+        """插件初始化，加载所有歌词文件并建立索引"""
+        logger.info("正在初始化 LyricNext 插件...")
+        
+        # 根据配置决定是否迁移默认歌词到用户目录
+        await self._migrate_lyrics_if_enabled()
         
         # 然后加载歌词
         await self._load_lyrics()
@@ -338,11 +342,7 @@ class LyricNextPlugin(Star):
     async def reload_command(self, event: AstrMessageEvent):
         """重新加载所有歌词"""
         # 根据配置决定是否迁移默认歌词到用户目录
-        if self.config.get("auto_import_default_lyrics", True):
-            logger.info("自动导入默认歌词库已启用，开始迁移歌词...")
-            await self._migrate_default_lyrics()
-        else:
-            logger.info("自动导入默认歌词库已禁用，跳过迁移歌词")
+        await self._migrate_lyrics_if_enabled()
             
         # 重新加载歌词
         await self._load_lyrics()
