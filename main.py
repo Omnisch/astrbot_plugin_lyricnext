@@ -4,11 +4,10 @@ import re
 import shutil
 from difflib import SequenceMatcher
 from typing import Tuple, Optional
-from pathlib import Path
 
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, StarTools, register
 
 
 @register("singalong", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.3.0")
@@ -20,8 +19,8 @@ class SingAlongPlugin(Star):
         # 初始化歌词索引
         self.default_lyrics_dir = os.path.join(os.path.dirname(__file__), "data", "lyrics")  # 插件内默认歌词目录
         
-        astrbot_root = Path(__file__).resolve().parent.parent.parent
-        self.lyrics_dir = os.path.join(astrbot_root, "lyrics_data")  # 用户持久化歌词目录
+        self.data_dir = StarTools.get_data_dir("singalong")
+        self.lyrics_dir = os.path.join(self.data_dir, "lyrics")
         
         self.lyrics_index = {}  # 歌词句子 -> [(下一句, 歌名), ...]
         self.lyrics_info = {}  # 歌名 -> 歌曲信息(作者等)
@@ -210,11 +209,11 @@ class SingAlongPlugin(Star):
             logger.error(f"遍历歌词目录失败: {str(e)}")
 
     def _preprocess_lyrics(self, lyrics: str) -> str:
-        """预处理歌词，去除标点符号、emoji、QQ表情等，统一大小写等"""
-        # 去除QQ表情格式 [表情:数字] 或类似格式
+        """预处理歌词，去除标点符号、emoji、QQ 表情等，统一大小写等"""
+        # 去除 QQ 表情格式 [表情:数字] 或类似格式
         processed = re.sub(r'\[表情:\d+\]', '', lyrics)
         processed = re.sub(r'\[[^\]]*\]', '', processed)  # 去除其他方括号格式
-          # 去除emoji表情（更精确的Unicode范围）
+          # 去除 emoji 表情（更精确的 Unicode 范围）
         emoji_pattern = re.compile(
             "["
             "\U0001F600-\U0001F64F"  # emoticons
@@ -501,4 +500,4 @@ class SingAlongPlugin(Star):
 
     async def terminate(self):
         """插件终止时的清理工作"""
-        logger.info("LyricNext 插件已终止")
+        logger.info("SingAlong 插件已终止")
