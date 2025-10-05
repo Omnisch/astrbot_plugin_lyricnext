@@ -11,8 +11,8 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 
 
-@register("lyricnext", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.2.2")
-class LyricNextPlugin(Star):
+@register("singalong", "EEEpai", "发送一句歌词，机器人会回复下一句", "1.3.0")
+class SingAlongPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         # 存储配置
@@ -100,7 +100,7 @@ class LyricNextPlugin(Star):
 
     async def initialize(self):
         """插件初始化，加载所有歌词文件并建立索引"""
-        logger.info("正在初始化 LyricNext 插件...")
+        logger.info("正在初始化 SingAlong 插件...")
         
         # 根据配置决定是否迁移默认歌词到用户目录
         await self._migrate_lyrics_if_enabled()
@@ -108,7 +108,7 @@ class LyricNextPlugin(Star):
         # 然后加载歌词
         await self._load_lyrics()
         logger.info(
-            f"LyricNext 插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
+            f"SingAlong 插件初始化完成，已加载 {len(self.lyrics_info)} 首歌曲，{len(self.lyrics_index)} 条歌词索引")
 
     def _find_song_by_name(self, song_name: str) -> Tuple[int, str]:
         """根据歌曲名查找目录中的歌曲，返回 (匹配状态, 歌曲路径)
